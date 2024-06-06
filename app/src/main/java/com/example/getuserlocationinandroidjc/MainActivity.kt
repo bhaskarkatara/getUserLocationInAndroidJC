@@ -30,89 +30,95 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.getuserlocationinandroidjc.ui.theme.GetUserLocationInAndroidJCTheme
 
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
-            val viewModel : LocationViewModel = viewModel()
+            val viewModel: LocationViewModel = viewModel()
             GetUserLocationInAndroidJCTheme {
-               Surface (
-                   modifier = Modifier.fillMaxSize(),
-                   color = MaterialTheme.colorScheme.background
-               ){
-                   MyApp(viewModel)
-               }
+                // A surface container using the 'background' color from the theme
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    MyApp(viewModel)
+                }
             }
         }
     }
 }
 
 @Composable
-fun MyApp(viewModel: LocationViewModel) {
+fun MyApp(viewModel: LocationViewModel){
     val context = LocalContext.current
     val locationUtils = LocationUtils(context)
-    LocationDisplay(locationUtils,viewModel, context)
+    LocationDisplay(locationUtils = locationUtils, viewModel, context = context)
 }
 
-@Composable
-fun LocationDisplay(locationUtils: LocationUtils,viewModel: LocationViewModel, context: Context) {
 
+@Composable
+fun LocationDisplay(
+    locationUtils: LocationUtils,
+    viewModel: LocationViewModel,
+    context: Context
+) {
     val location = viewModel.location.value
 
-
-
-
-//step1: Register ActivityResult to request Location permissions
-
-    val requestLocationPermissions = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true &&
-            permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        ) {
-
-            // Permissions granted, update the location
-            locationUtils.requestLocationUpdate(viewModel)
-
-        } else {
-
-//   step2: Add explanation dialog for Location permissions
-            val rationalRequired = ActivityCompat.shouldShowRequestPermissionRationale(
-                context as MainActivity,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) || ActivityCompat.shouldShowRequestPermissionRationale(
-                context as MainActivity,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
-
-            if (rationalRequired) {
-                Toast.makeText(context, "Permission is required for this feature", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "Permission is required, please go to settings", Toast.LENGTH_SHORT).show()
-            }
-        }
+    val address = location?.let{
+        locationUtils.reverseGeocodeLocation(location)
     }
 
+    //step1:
+    val requestPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions() ,
+        onResult = { permissions ->
+            if(permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+                && permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true){
+                // I HAVE ACCESS to location
 
-    Column(
-        modifier = Modifier.fillMaxSize(),
+                locationUtils.requestLocationUpdates(viewModel = viewModel)
+            }else{
+//                step2:
+                val rationaleRequired = ActivityCompat.shouldShowRequestPermissionRationale(
+                    context as MainActivity,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) || ActivityCompat.shouldShowRequestPermissionRationale(
+                    context as MainActivity,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+
+                if(rationaleRequired){
+                    Toast.makeText(context,
+                        "Location Permission is required for this feature to work", Toast.LENGTH_LONG)
+                        .show()
+                }else{
+                    Toast.makeText(context,
+                        "Location Permission is required. Please enable it in the Android Settings",
+                        Toast.LENGTH_LONG)
+                        .show()
+                }
+            }
+        })
+
+    Column(modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+        verticalArrangement = Arrangement.Center) {
+
         if(location != null){
-            Text(text = "Address: ${location.latitude} ${location.longitude}")
-        }else
-        Text(text = "location is unAvailable")
+            Text("Address: ${location.latitude} ${location.longitude} \n $address")
+        }else{
+            Text(text = "Location not available")
+        }
+
 
         Button(onClick = {
-            //check if permission is already granted or not ?
-            if (locationUtils.hasPermissionGranted(context)) {
-                // Permission already granted, update the location
-                 locationUtils.requestLocationUpdate(viewModel)
-            } else {
-                // if not granted,-> Request for the permission
-                requestLocationPermissions.launch(
+            if(locationUtils.hasLocationPermission(context)){
+                // Permission already granted update the location
+                locationUtils.requestLocationUpdates(viewModel)
+            }else{
+                // Request location permission
+                requestPermissionLauncher.launch(
                     arrayOf(
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.ACCESS_COARSE_LOCATION
